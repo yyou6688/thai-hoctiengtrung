@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tập Viết</title>
+<meta name="theme-color" content="#E8798A">
+<link rel="manifest" href="manifest.json?v=1">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tập Viết">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3/dist/hanzi-writer.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/pinyin-pro/dist/index.js" defer></script>
+<style>
+:root{
+  --bg:#FFF5F6;
+  --bg-deep:#FCE6E9;
+  --card:#FFFFFF;
+  --border:#F6D3D8;
+  --primary:#E8798A;
+  --primary-dark:#C14F63;
+  --primary-soft:#FBDCE1;
+  --accent:#F2A0A0;
+  --accent-soft:#FCE6E6;
+  --text:#4A2B30;
+  --text-muted:#A17D82;
+  --success:#E8798A;
+  --success-soft:#FBDCE1;
+  --radius-lg:22px;
+  --radius-md:16px;
+  --radius-sm:11px;
+  --shadow:0 6px 20px rgba(193,79,99,0.10);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Noto Sans SC', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at 15% 8%, #FBD9DF 0%, transparent 45%),
+    radial-gradient(circle at 90% 92%, #FCE6E6 0%, transparent 40%),
+    var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+  overscroll-behavior-y:none;
+}
+#app{
+  max-width:480px;
+  margin:0 auto;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  position:relative;
+  padding-bottom:86px;
+}
+
+header.top{
+  padding:22px 20px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{
+  width:38px;height:38px;border-radius:12px;
+  background:linear-gradient(135deg,var(--primary),var(--accent));
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:10px;letter-spacing:0.2px;
+  box-shadow:var(--shadow);
+}
+.brand-text h1{font-size:17px;margin:0;font-weight:800;letter-spacing:0.2px;}
+.brand-text p{margin:0;font-size:11.5px;color:var(--text-muted);}
+.streak-pill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--card);border:1px solid var(--border);
+  padding:7px 13px 7px 11px;border-radius:100px;
+  box-shadow:var(--shadow);font-weight:700;font-size:14px;
+}
+
+main{flex:1;padding:4px 20px 20px;}
+.view{display:none;animation:fadeIn .28s ease;}
+.view.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+
+h2.section-title{font-size:15px;font-weight:800;margin:22px 0 10px;color:var(--text);}
+h2.section-title:first-child{margin-top:2px;}
+.section-sub{font-size:12.5px;color:var(--text-muted);margin:-6px 0 12px;}
+
+.card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);padding:18px;
+  box-shadow:var(--shadow);margin-bottom:14px;
+}
+
+.btn{
+  border:none;border-radius:100px;padding:12px 18px;
+  font-family:inherit;font-weight:700;font-size:14px;
+  cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  transition:transform .12s ease, opacity .12s ease;
+}
+.btn:active{transform:scale(0.96);}
+.btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;box-shadow:0 6px 16px rgba(47,143,134,.28);}
+.btn-soft{background:var(--primary-soft);color:var(--primary-dark);}
+.btn-accent{background:var(--accent-soft);color:#8A3F4C;}
+.btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border);}
+.btn-block{width:100%;}
+.btn-sm{padding:8px 13px;font-size:12.5px;}
+.btn-icon{width:38px;height:38px;padding:0;border-radius:12px;flex:none;}
+.btn:disabled{opacity:.4;cursor:default;}
+
+input[type=text], textarea, select{
+  width:100%;font-family:inherit;
+  background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:11px 13px;font-size:14px;color:var(--text);outline:none;
+}
+textarea{resize:vertical;min-height:70px;line-height:1.5;}
+input::placeholder, textarea::placeholder{color:#94B4B1;}
+label.field-label{font-size:12px;font-weight:700;color:var(--text-muted);display:block;margin:12px 0 5px;}
+label.field-label:first-child{margin-top:0;}
+
+.streak-hero{
+  border-radius:var(--radius-lg);padding:22px 20px;
+  background:linear-gradient(135deg,var(--primary) 0%, #F0A3AE 55%, var(--accent) 130%);
+  color:#fff;position:relative;overflow:hidden;margin-bottom:16px;
+}
+.streak-hero .num{font-size:42px;font-weight:800;line-height:1;}
+.streak-hero .label{font-size:12.5px;opacity:.92;margin-top:4px;}
+.streak-hero .sub{font-size:11.5px;opacity:.85;margin-top:10px;}
+.dots-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;margin-top:16px;}
+.dot{aspect-ratio:1;border-radius:6px;background:rgba(255,255,255,0.22);}
+.dot.on{background:#fff;}
+
+.row{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--border);}
+.row:last-child{border-bottom:none;}
+.row .rtext{flex:1;min-width:0;}
+.row .rtitle{font-weight:700;font-size:14px;}
+.row .rmeta{font-size:11.5px;color:var(--text-muted);margin-top:2px;}
+.tag{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:100px;background:var(--primary-soft);color:var(--primary-dark);margin-right:5px;}
+.tag.accent{background:var(--accent-soft);color:#8A3F4C;}
+
+.hanzi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;}
+.hanzi-tile{
+  aspect-ratio:1;border-radius:var(--radius-md);
+  background:var(--bg-deep);border:1.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:700;cursor:pointer;position:relative;
+}
+.hanzi-tile.due{border-color:var(--accent);background:var(--accent-soft);}
+.hanzi-tile .badge{
+  position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--accent);
+}
+
+/* ---------- News / pinyin ruby ---------- */
+.pinyin-passage{font-size:16px;line-height:2.5;word-break:break-word;}
+.pinyin-passage ruby{ruby-position:over;margin:0 1px;}
+.pinyin-passage rt{font-size:9.5px;color:var(--primary-dark);font-weight:700;user-select:none;}
+.vocab-extract-item{
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:11px 12px;margin-top:8px;background:var(--bg-deep);
+}
+.vocab-extract-item .term{font-weight:800;font-size:14.5px;color:var(--primary-dark);}
+.vocab-extract-item .expl{font-size:12.5px;color:var(--text);margin-top:4px;line-height:1.5;}
+.spinner{
+  width:16px;height:16px;border-radius:50%;
+  border:2.5px solid var(--primary-soft);border-top-color:var(--primary);
+  animation:spin .7s linear infinite;display:inline-block;vertical-align:middle;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ---------- 跟读 (Gendu) ---------- */
+.gendu-card{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 16px;margin-bottom:10px;
+}
+.gendu-char{font-size:26px;font-weight:800;flex:none;min-width:44px;text-align:center;}
+.gendu-py{font-size:12px;color:var(--primary-dark);font-weight:700;margin-top:2px;}
+.gendu-controls{display:flex;gap:6px;flex:none;}
+.gendu-controls button{
+  width:34px;height:34px;border-radius:10px;border:none;
+  display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;
+}
+.gendu-btn-play{background:var(--primary-soft);color:var(--primary-dark);}
+.gendu-btn-rec{background:var(--accent-soft);color:#8A3F4C;}
+.gendu-btn-rec.recording{background:#C0637E;color:#fff;animation:pulse 1s infinite;}
+@keyframes pulse{50%{opacity:.55;}}
+.gendu-btn-replay{background:var(--success-soft);color:var(--primary-dark);}
+.gendu-btn-replay:disabled{opacity:.35;cursor:default;}
+
+.writer-stage{
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+}
+#hanziTarget{
+  width:260px;height:260px;background:var(--bg-deep);border-radius:var(--radius-lg);
+  border:1.5px solid var(--border);
+}
+.writer-controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.writer-meta{text-align:center;}
+.writer-meta .py{font-size:15px;color:var(--primary-dark);font-weight:700;}
+.writer-meta .cn{font-size:12.5px;color:var(--text-muted);margin-top:2px;max-width:300px;}
+
+.empty-state{text-align:center;padding:34px 16px;color:var(--text-muted);}
+.empty-state .em{font-size:30px;display:block;margin-bottom:8px;}
+.empty-state p{font-size:13px;margin:2px 0;}
+
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(36,59,57,0.32);
+  display:none;align-items:flex-end;justify-content:center;z-index:50;backdrop-filter:blur(2px);
+}
+.modal-overlay.open{display:flex;}
+.modal{
+  background:var(--card);width:100%;max-width:480px;border-radius:24px 24px 0 0;
+  padding:22px 20px calc(22px + env(safe-area-inset-bottom));
+  max-height:85vh;overflow-y:auto;animation:slideUp .22s ease;
+}
+@keyframes slideUp{from{transform:translateY(30px);opacity:0;}to{transform:none;opacity:1;}}
+.modal h3{margin:0 0 4px;font-size:16px;font-weight:800;}
+.modal-actions{display:flex;gap:10px;margin-top:18px;}
+.modal-actions .btn{flex:1;}
+
+nav.bottom{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;background:rgba(255,255,255,0.92);backdrop-filter:blur(14px);
+  border-top:1px solid var(--border);display:flex;padding:8px 6px calc(8px + env(safe-area-inset-bottom));z-index:20;
+}
+nav.bottom button{
+  flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:6px 2px;border-radius:14px;color:var(--text-muted);font-family:inherit;cursor:pointer;
+}
+nav.bottom button .ic{font-size:19px;}
+nav.bottom button .lb{font-size:10px;font-weight:700;}
+nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft);}
+
+#toast{
+  position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:var(--text);color:#fff;padding:10px 18px;border-radius:100px;
+  font-size:12.5px;font-weight:600;opacity:0;pointer-events:none;transition:all .25s ease;z-index:60;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+::-webkit-scrollbar{width:0;height:0;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark">Thái</div>
+      <div class="brand-text">
+        <h1>Tập Viết</h1>
+        <p>汉字记忆工作台 · luyện viết & ghi nhớ</p>
+      </div>
+    </div>
+    <div class="streak-pill"><span>🔥</span><span id="streakPillNum">0</span></div>
+  </header>
+
+  <main>
+    <!-- ============ HOME ============ -->
+    <section class="view active" id="view-home">
+      <div class="streak-hero">
+        <div class="num" id="heroStreak">0 ngày</div>
+        <div class="label">chuỗi luyện tập liên tiếp</div>
+        <div class="dots-grid" id="heroDots"></div>
+        <div class="sub" id="heroSub">Thêm chữ đầu tiên vào 生字库 để bắt đầu 🌱</div>
+      </div>
+
+      <h2 class="section-title">Hôm nay cần ôn</h2>
+      <div class="section-sub">Chữ đến hạn ôn — chạm để luyện viết ngay</div>
+      <div id="dueGrid" class="hanzi-grid"></div>
+
+      <h2 class="section-title">Tổng quan</h2>
+      <div class="card" style="display:flex;padding:0;overflow:hidden;">
+        <div style="flex:1;text-align:center;padding:16px 8px;">
+          <div style="font-size:20px;font-weight:800;color:var(--primary-dark);" id="statTotal">0</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">chữ trong kho</div>
+        </div>
+        <div style="width:1px;background:var(--border);"></div>
+        <div style="flex:1;text-align:center;padding:16px 8px;">
+          <div style="font-size:20px;font-weight:800;color:var(--primary-dark);" id="statMastered">0</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">đã thuộc (box cao)</div>
+        </div>
+        <div style="width:1px;background:var(--border);"></div>
+        <div style="flex:1;text-align:center;padding:16px 8px;">
+          <div style="font-size:20px;font-weight:800;color:var(--primary-dark);" id="statDue">0</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">cần ôn hôm nay</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WRITE (luyện viết) ============ -->
+    <section class="view" id="view-write">
+      <h2 class="section-title" style="margin-top:2px;">写字练习</h2>
+      <div class="section-sub" id="writeSub">Chọn 1 chữ ở kho để bắt đầu luyện</div>
+      <div class="card writer-stage" id="writerCard" style="display:none;">
+        <div id="hanziTarget"></div>
+        <div class="writer-meta">
+          <div class="py" id="writerPinyin"></div>
+          <div class="cn" id="writerNote"></div>
+        </div>
+        <div class="writer-controls">
+          <button class="btn btn-soft btn-sm" id="btnShowAnim">▶ Xem nét mẫu</button>
+          <button class="btn btn-soft btn-sm" id="btnQuiz">✍️ Tự viết (chấm điểm)</button>
+          <button class="btn btn-soft btn-sm" id="btnHint">💡 Gợi ý nét tiếp</button>
+        </div>
+        <div class="writer-controls" id="reviewButtons" style="display:none;">
+          <button class="btn btn-ghost btn-sm" data-grade="0">😵 Quên hẳn</button>
+          <button class="btn btn-soft btn-sm" data-grade="1">😐 Khó nhớ</button>
+          <button class="btn btn-primary btn-sm" data-grade="2">😊 Nhớ tốt</button>
+        </div>
+      </div>
+      <div id="writePicker"></div>
+    </section>
+
+    <!-- ============ DECK (生字库) ============ -->
+    <section class="view" id="view-deck">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <h2 class="section-title" style="margin-top:2px;">生字库</h2>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-soft btn-sm" id="btnImportHSK1">📥 HSK</button>
+          <button class="btn btn-primary btn-icon" id="btnAddHanzi">＋</button>
+        </div>
+      </div>
+      <div class="section-sub">Kho chữ đang luyện — thêm chữ mới, ghi câu chuyện liên tưởng riêng của bạn</div>
+      <div id="deckList"></div>
+    </section>
+
+    <!-- ============ GENDU (跟读) ============ -->
+    <section class="view" id="view-gendu">
+      <h2 class="section-title" style="margin-top:2px;">跟读练习</h2>
+      <div class="section-sub">Luyện đọc đúng những chữ đang có trong 生字库 — nghe mẫu, ghi âm, tự so sánh</div>
+      <div class="card">
+        <label class="field-label">Số chữ mỗi buổi</label>
+        <select id="genduQty">
+          <option value="5">5 chữ (nhanh)</option>
+          <option value="10" selected>10 chữ (vừa)</option>
+          <option value="20">20 chữ (nhiều)</option>
+        </select>
+        <label class="field-label">Tốc độ đọc mẫu</label>
+        <select id="genduSpeed">
+          <option value="0.6">Chậm (mới học)</option>
+          <option value="0.85" selected>Vừa</option>
+          <option value="1">Bình thường</option>
+        </select>
+        <button class="btn btn-primary btn-block" id="btnGenduStart" style="margin-top:14px;">▶ Bắt đầu buổi hôm nay</button>
+      </div>
+      <div id="genduSession"></div>
+    </section>
+
+    <!-- ============ NEWS (新闻精读) ============ -->
+    <section class="view" id="view-news">
+      <h2 class="section-title" style="margin-top:2px;">新闻精读</h2>
+      <div class="section-sub">Dán link bài báo tiếng Trung → AI tóm tắt + phiên âm + gợi ý thêm chữ vào kho</div>
+
+      <div class="card" style="display:flex;gap:8px;padding:12px;">
+        <input type="text" id="newsUrl" placeholder="Dán link bài báo vào đây (https://...)" style="flex:1;">
+        <button class="btn btn-primary btn-icon" id="btnNewsGo">▶</button>
+      </div>
+
+      <div id="newsDetail"></div>
+
+      <div class="card" id="newsConfigWarning" style="display:none;background:var(--accent-soft);border-color:transparent;">
+        <div style="font-size:12.5px;font-weight:700;color:#8A3F4C;">⚠️ Chưa cấu hình Worker</div>
+        <div style="font-size:12px;color:#8A3F4C;margin-top:4px;">Vào ⚙️ 设置 → mục "新闻 Worker" → dán đúng URL + Token bạn đã dùng cho app Xưởng Luyện Nói (dùng chung được, không cần tạo Worker mới).</div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="view" id="view-settings">
+      <h2 class="section-title" style="margin-top:2px;">新闻 Worker</h2>
+      <div class="section-sub">Dùng lại đúng URL + Token của Worker bạn đã cấu hình cho Xưởng Luyện Nói</div>
+      <div class="card">
+        <label class="field-label">Worker URL</label>
+        <input type="text" id="cfgWorkerUrl" placeholder="https://xxx.workers.dev">
+        <label class="field-label">Auth Token</label>
+        <input type="text" id="cfgWorkerToken" placeholder="Token bạn đã đặt">
+        <button class="btn btn-primary btn-block" id="btnSaveWorkerCfg" style="margin-top:14px;">Lưu cấu hình</button>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="rtext">
+            <div class="rtitle">Xuất bản sao lưu</div>
+            <div class="rmeta">Tải toàn bộ kho chữ + tiến độ về máy</div>
+          </div>
+          <button class="btn btn-soft btn-sm" id="btnExport">Xuất</button>
+        </div>
+        <div class="row">
+          <div class="rtext">
+            <div class="rtitle">Nhập lại từ bản sao lưu</div>
+            <div class="rmeta">Khôi phục từ file JSON đã lưu</div>
+          </div>
+          <button class="btn btn-soft btn-sm" id="btnImport">Nhập</button>
+          <input type="file" id="fileImport" accept="application/json" style="display:none;">
+        </div>
+      </div>
+      <div class="card">
+        <div class="row" style="border:none;">
+          <div class="rtext">
+            <div class="rtitle" style="color:#C0637E;">Xoá toàn bộ dữ liệu</div>
+            <div class="rmeta">Không thể hoàn tác</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btnReset" style="color:#C0637E;">Xoá</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="bottom">
+    <button class="nav-btn active" data-view="home"><span class="ic">🏠</span><span class="lb">打卡</span></button>
+    <button class="nav-btn" data-view="write"><span class="ic">✍️</span><span class="lb">写字</span></button>
+    <button class="nav-btn" data-view="deck"><span class="ic">📚</span><span class="lb">生字库</span></button>
+    <button class="nav-btn" data-view="gendu"><span class="ic">🎧</span><span class="lb">跟读</span></button>
+    <button class="nav-btn" data-view="news"><span class="ic">📰</span><span class="lb">新闻</span></button>
+    <button class="nav-btn" data-view="settings"><span class="ic">⚙️</span><span class="lb">设置</span></button>
+  </nav>
+
+</div>
+
+<div id="toast"></div>
+<div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
+
+<script src="app.js?v=5"></script>
+</body>
+</html>
