@@ -131,16 +131,49 @@ function getCheckinQty(){
 }
 function setCheckinQty(n){ localStorage.setItem('xnc_checkin_qty', String(n)); }
 
+// Lọc theo số nét chữ ở 打卡 (tuỳ chọn, mặc định không giới hạn — giữ hành vi cũ)
+function getCheckinStrokeRange(){
+  const raw = localStorage.getItem('xnc_checkin_stroke_range'); // "" | "1-5" | "custom:6:12"
+  if(!raw) return null;
+  const parts = raw.split(':');
+  if(parts[0]==='custom'){
+    const min = parts[1]!=='' ? parseInt(parts[1]) : null;
+    const max = parts[2]!=='' ? parseInt(parts[2]) : null;
+    if(min==null && max==null) return null;
+    return {min, max};
+  }
+  const [a,b] = raw.split('-').map(Number);
+  return {min:a, max:b};
+}
+function setCheckinStrokeRange(raw){ localStorage.setItem('xnc_checkin_stroke_range', raw); }
+
 // Chọn ra danh sách chữ để hiển thị ở 打卡 hôm nay: nếu due nhiều hơn số đã
 // cấu hình, ưu tiên nhóm CÙNG BỘ THỦ, trong nhóm thì SỐ NÉT gần nhau nhất
 // (dùng dữ liệu xinhua nếu đã có sẵn trong bộ nhớ; nếu chưa có, dùng tạm
 // thứ tự cũ rồi render lại ngay khi tải xong dữ liệu bộ thủ ở nền).
+// Nếu có cấu hình lọc số nét, lọc trước — chữ ngoài khoảng vẫn còn hạn ôn
+// bình thường (ngày ôn không đổi), chỉ tạm không hiện ở 打卡 hôm nay thôi.
 async function pickCheckinList(due){
   const qty = getCheckinQty();
-  if(due.length<=qty) return due;
-  const chars = due.map(h=>h.char);
+  const range = getCheckinStrokeRange();
+  let pool = due;
+  if(range){
+    await loadXinhuaCharDict();
+    const filtered = due.filter(h=>{
+      const st = getStrokesSync(h.char);
+      if(st==null) return false;
+      if(range.min!=null && st<range.min) return false;
+      if(range.max!=null && st>range.max) return false;
+      return true;
+    });
+    if(filtered.length>0) pool = filtered;
+    // nếu lọc xong không còn chữ nào khớp, tạm dùng lại danh sách gốc
+    // (tránh 打卡 trống trơn chỉ vì khoảng nét chọn quá hẹp)
+  }
+  if(pool.length<=qty) return pool;
+  const chars = pool.map(h=>h.char);
   const pickedChars = await pickByRadicalAndStrokes(chars, qty);
-  const byChar = new Map(due.map(h=>[h.char,h]));
+  const byChar = new Map(pool.map(h=>[h.char,h]));
   return pickedChars.map(ch=>byChar.get(ch)).filter(Boolean);
 }
 
@@ -250,7 +283,7 @@ function renderHome(){
     dueGrid.querySelectorAll('.hanzi-tile').forEach(el=>{
       el.addEventListener('click', ()=>{ goView('write'); openWriter(el.dataset.id); });
     });
-    if(due.length>getCheckinQty()){
+    if(due.length>getCheckinQty() || getCheckinStrokeRange()){
       pickCheckinList(due).then(list=>{
         dueGrid.innerHTML = list.map(h=>`
           <div class="hanzi-tile due" data-id="${h.id}">${h.char}<span class="badge"></span></div>
@@ -384,6 +417,15 @@ function gradeHanzi(id, grade){
 function renderDeck(){
   const qtySel = document.getElementById('deckCheckinQty');
   if(qtySel) qtySel.value = String(getCheckinQty());
+  const rangeSel = document.getElementById('deckCheckinStrokeRange');
+  if(rangeSel) rangeSel.value = localStorage.getItem('xnc_checkin_stroke_range') || '';
+  const customWrap = document.getElementById('deckCheckinStrokeCustom');
+  if(customWrap) customWrap.style.display = rangeSel && rangeSel.value==='custom' ? 'flex' : 'none';
+  if(rangeSel && rangeSel.value==='custom'){
+    const raw = (localStorage.getItem('xnc_checkin_stroke_range')||'').split(':');
+    document.getElementById('deckCheckinStrokeMin').value = raw[1] || '';
+    document.getElementById('deckCheckinStrokeMax').value = raw[2] || '';
+  }
   const wrap = document.getElementById('deckList');
   if(DB.hanzi.length===0){
     wrap.innerHTML = `<div class="empty-state"><span class="em">📚</span><p>Kho chữ đang trống.</p><p>Bấm ＋ để thêm chữ đầu tiên!</p></div>`;
@@ -420,6 +462,29 @@ document.getElementById('deckCheckinQty').addEventListener('change', (e)=>{
   toast('Đã lưu — 打卡 sẽ hiện tối đa '+e.target.value+' chữ, chọn theo cùng bộ thủ');
   renderHome();
 });
+
+document.getElementById('deckCheckinStrokeRange').addEventListener('change', (e)=>{
+  const customWrap = document.getElementById('deckCheckinStrokeCustom');
+  if(e.target.value==='custom'){
+    customWrap.style.display = 'flex';
+    return; // chờ nhập xong 2 ô rồi lưu qua listener bên dưới
+  }
+  customWrap.style.display = 'none';
+  setCheckinStrokeRange(e.target.value); // "" hoặc "1-5" / "6-10" / ...
+  toast(e.target.value ? 'Đã lưu — 打卡 chỉ ưu tiên chữ trong khoảng nét này' : 'Đã bỏ lọc theo số nét ở 打卡');
+  renderHome();
+});
+function saveDeckCheckinStrokeCustom(){
+  const min = document.getElementById('deckCheckinStrokeMin').value;
+  const max = document.getElementById('deckCheckinStrokeMax').value;
+  if(min==='' && max===''){ setCheckinStrokeRange(''); return; }
+  if(min!=='' && max!=='' && parseInt(min)>parseInt(max)){ toast('Khoảng nét không hợp lệ (Từ lớn hơn Đến)'); return; }
+  setCheckinStrokeRange(`custom:${min}:${max}`);
+  toast('Đã lưu — 打卡 chỉ ưu tiên chữ trong khoảng nét này');
+  renderHome();
+}
+document.getElementById('deckCheckinStrokeMin').addEventListener('change', saveDeckCheckinStrokeCustom);
+document.getElementById('deckCheckinStrokeMax').addEventListener('change', saveDeckCheckinStrokeCustom);
 
 document.getElementById('btnAddHanzi').addEventListener('click', ()=>{
   openModal(`
@@ -1119,7 +1184,7 @@ function replayRecording(idx){
 /* ---------------- service worker ---------------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js?v=3').catch(()=>{});
+    navigator.serviceWorker.register('sw.js?v=4').catch(()=>{});
   });
 }
 
