@@ -244,11 +244,11 @@ function getStrokesSync(char){
 }
 
 /* ---------------- Dịch tự động sang tiếng Việt ----------------
-   Dùng endpoint dịch không cần API key của Google (được nhiều dự án mã
-   nguồn mở dùng: translate.googleapis.com/translate_a/single). Đây KHÔNG
-   phải API chính thức nên có thể bị giới hạn/đổi định dạng theo thời
-   gian — nếu sau này thấy nút "Dịch" báo lỗi liên tục, đó là dấu hiệu
-   Google đã chặn endpoint này, cần thay bằng dịch vụ khác.
+   Dùng MyMemory (api.mymemory.translated.net) — dịch vụ miễn phí có bật
+   CORS chính thức cho gọi trực tiếp từ trình duyệt, không cần API key.
+   Giới hạn ~5000 từ/ngày cho người dùng ẩn danh — đủ dùng cho 1 người.
+   Nếu sau này thấy nút "Dịch" báo lỗi liên tục (ví dụ do vượt giới hạn
+   ngày), đó là dấu hiệu cần đổi sang dịch vụ khác hoặc chờ sang ngày mới.
    Kết quả dịch được cache lại (IndexedDB) để không phải dịch lại chữ/câu
    đã dịch trước đó — tiết kiệm mạng, phản hồi tức thì các lần sau. */
 async function translateZhToVi(text){
@@ -257,11 +257,15 @@ async function translateZhToVi(text){
   const cacheKey = 'tr-vi:' + clean;
   const cached = await xnIDBGet(cacheKey);
   if(cached !== null) return cached;
-  const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=vi&dt=t&q=' + encodeURIComponent(clean);
+  // Dùng MyMemory (api.mymemory.translated.net) — có bật CORS chính thức cho
+  // gọi trực tiếp từ trình duyệt, không cần API key. (Trước dùng endpoint chui
+  // của Google nhưng bị chặn CORS nên lúc nào cũng báo lỗi — đã đổi sang đây.)
+  const url = 'https://api.mymemory.translated.net/get?langpair=zh-CN|vi&q=' + encodeURIComponent(clean);
   const res = await fetch(url);
   if(!res.ok) throw new Error('HTTP '+res.status);
   const data = await res.json();
-  const translated = (data[0]||[]).map(seg=>seg[0]).join('');
+  const translated = data && data.responseData && data.responseData.translatedText;
+  if(!translated || /MYMEMORY WARNING/i.test(translated)) throw new Error('translate-failed');
   xnIDBSet(cacheKey, translated); // lưu nền
   return translated;
 }
