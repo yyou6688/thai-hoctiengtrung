@@ -10,7 +10,7 @@
    Trả lời "quên hẳn" → về box 0.
 ====================================================================== */
 
-const STORE_KEYS = ['xnc_hanzi', 'xnc_checkins'];
+const STORE_KEYS = ['xnc_hanzi', 'xnc_checkins', 'xnc_pets'];
 const BOX_INTERVALS = [0, 1, 2, 4, 7, 15, 30, 60]; // số ngày tới lần ôn kế tiếp ứng với mỗi box
 
 function loadJSON(key, fallback){
@@ -66,9 +66,10 @@ ensureSeed();
 let DB = {
   hanzi: loadJSON('xnc_hanzi', []),
   checkins: loadJSON('xnc_checkins', {}),
+  pets: loadJSON('xnc_pets', null),
 };
 function persist(part){
-  const map = {hanzi:'xnc_hanzi', checkins:'xnc_checkins'};
+  const map = {hanzi:'xnc_hanzi', checkins:'xnc_checkins', pets:'xnc_pets'};
   saveJSON(map[part], DB[part]);
 }
 
@@ -101,8 +102,17 @@ document.querySelectorAll('.nav-btn').forEach(btn=>btn.addEventListener('click',
 ================================================================== */
 function checkinToday(){
   const t = todayStr();
-  if(!DB.checkins[t]) DB.checkins[t] = true;
+  const already = !!DB.checkins[t];
+  if(!already) DB.checkins[t] = true;
   persist('checkins');
+  if(!already){
+    const testInfo = getTodayTestInfo();
+    const bonus = testInfo.attempted>0 && (testInfo.passed/testInfo.attempted)>=PET_QUALITY_BONUS_THRESHOLD;
+    feedActivePet(bonus);
+  }
+  const events = refreshPetUnlocks();
+  // hiện sau 1 nhịp để không bị các toast khác (vd "Đã ghi nhận...") đè mất ngay lập tức
+  setTimeout(()=> showPetEvents(events), 1900);
 }
 function getStreak(){
   const dates = Object.keys(DB.checkins).filter(d=>DB.checkins[d]).sort();
@@ -299,6 +309,7 @@ function renderHome(){
   document.getElementById('statMastered').textContent = DB.hanzi.filter(h=>h.box>=5).length;
   document.getElementById('statDue').textContent = due.length;
 
+  renderPetCard();
   renderSuggestNew();
 }
 
@@ -332,6 +343,9 @@ function openWriter(id){
   currentHanziId = id;
   document.getElementById('writerCard').style.display = 'flex';
   document.getElementById('reviewButtons').style.display = 'none';
+  const timedStatusEl = document.getElementById('timedTestStatus');
+  if(timedStatusEl){ timedStatusEl.style.display='none'; timedStatusEl.innerHTML=''; }
+  clearInterval(timedTestTimer);
   document.getElementById('writerNote').textContent = h.note || '(chưa có ghi chú liên tưởng — thêm ở 生字库)';
 
   // phiên âm bằng pinyin-pro nếu tải được
@@ -387,6 +401,66 @@ document.getElementById('btnQuiz').addEventListener('click', ()=>{
     }
   });
 });
+
+/* ---------------- ⏱ Kiểm tra viết tính giờ (2 lượt) — thưởng cho thú cưng ----------------
+   Tách riêng khỏi "✍️ Tự viết (chấm điểm)" ở trên: cái đó dùng để TỰ ĐÁNH GIÁ
+   cho hệ SRS (không đổi). Bài kiểm tra này khắt khe hơn (có giờ, tối đa 2 lượt)
+   và chỉ ảnh hưởng tới việc thú cưng có được cho ăn thêm hay không — không
+   đụng vào box/dueDate của chữ. */
+let timedTestTimer = null;
+document.getElementById('btnTimedTest').addEventListener('click', ()=>{
+  if(!writer || !currentHanziId) return;
+  const h = DB.hanzi.find(x=>x.id===currentHanziId);
+  if(!h) return;
+  startTimedTest(h, 1);
+});
+function startTimedTest(h, attempt){
+  const statusEl = document.getElementById('timedTestStatus');
+  const strokes = h.strokes || getStrokesSync(h.char) || 10;
+  const limit = getTestTimeLimit(strokes);
+  let remaining = limit;
+  let finished = false;
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = `<div class="rmeta">⏱ Lượt ${attempt}/2 — còn <b id="timedTestClock">${remaining}</b>s để viết đúng ${strokes} nét</div>`;
+  clearInterval(timedTestTimer);
+  timedTestTimer = setInterval(()=>{
+    remaining--;
+    const clockEl = document.getElementById('timedTestClock');
+    if(clockEl) clockEl.textContent = remaining;
+    if(remaining<=0){
+      clearInterval(timedTestTimer);
+      if(!finished){ finished=true; try{ writer.cancelQuiz && writer.cancelQuiz(); }catch(e){}
+        handleTimedTestResult(h, attempt, false, 'Hết giờ!'); }
+    }
+  }, 1000);
+  try{
+    writer.quiz({
+      onComplete: (summary)=>{
+        if(finished) return; finished=true; clearInterval(timedTestTimer);
+        const allowedMistakes = Math.max(1, Math.ceil(strokes/4));
+        const pass = (summary.totalMistakes||0) <= allowedMistakes;
+        handleTimedTestResult(h, attempt, pass, pass?'':'Sai quá nhiều nét');
+      }
+    });
+  }catch(e){
+    clearInterval(timedTestTimer);
+    statusEl.innerHTML = `<div class="rmeta">Không chạy được bài kiểm tra (thiếu dữ liệu nét viết).</div>`;
+  }
+}
+function handleTimedTestResult(h, attempt, pass, reason){
+  const statusEl = document.getElementById('timedTestStatus');
+  if(pass){
+    recordTestResult(true);
+    statusEl.innerHTML = `<div class="rmeta" style="color:var(--primary-dark);font-weight:700;">🎉 Qua kiểm tra! Đã tính vào tỉ lệ nhớ tốt hôm nay cho thú cưng.</div>`;
+    toast('Qua kiểm tra viết! 🐾');
+  } else if(attempt<2){
+    statusEl.innerHTML = `<div class="rmeta">${reason} — thử thêm 1 lượt nữa nhé!</div>`;
+    setTimeout(()=> startTimedTest(h, 2), 1200);
+  } else {
+    recordTestResult(false);
+    statusEl.innerHTML = `<div class="rmeta">${reason} — chưa qua kiểm tra lần này, không sao, cứ tiếp tục ôn 🌱</div>`;
+  }
+}
 
 document.getElementById('reviewButtons').addEventListener('click', (e)=>{
   const btn = e.target.closest('[data-grade]');
@@ -1184,7 +1258,7 @@ function replayRecording(idx){
 /* ---------------- service worker ---------------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js?v=4').catch(()=>{});
+    navigator.serviceWorker.register('sw.js?v=5').catch(()=>{});
   });
 }
 
