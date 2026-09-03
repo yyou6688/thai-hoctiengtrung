@@ -124,6 +124,26 @@ function getDueList(){
   return DB.hanzi.filter(h => h.dueDate <= t);
 }
 
+// Số chữ muốn hiển thị mỗi buổi 打卡 — cấu hình ở 生字库 (mặc định 15, như cũ)
+function getCheckinQty(){
+  const n = parseInt(localStorage.getItem('xnc_checkin_qty')||'15');
+  return isNaN(n) ? 15 : n;
+}
+function setCheckinQty(n){ localStorage.setItem('xnc_checkin_qty', String(n)); }
+
+// Chọn ra danh sách chữ để hiển thị ở 打卡 hôm nay: nếu due nhiều hơn số đã
+// cấu hình, ưu tiên nhóm CÙNG BỘ THỦ, trong nhóm thì SỐ NÉT gần nhau nhất
+// (dùng dữ liệu xinhua nếu đã có sẵn trong bộ nhớ; nếu chưa có, dùng tạm
+// thứ tự cũ rồi render lại ngay khi tải xong dữ liệu bộ thủ ở nền).
+async function pickCheckinList(due){
+  const qty = getCheckinQty();
+  if(due.length<=qty) return due;
+  const chars = due.map(h=>h.char);
+  const pickedChars = await pickByRadicalAndStrokes(chars, qty);
+  const byChar = new Map(due.map(h=>[h.char,h]));
+  return pickedChars.map(ch=>byChar.get(ch)).filter(Boolean);
+}
+
 function renderHome(){
   const streak = getStreak();
   document.getElementById('streakPillNum').textContent = streak;
@@ -148,12 +168,23 @@ function renderHome(){
   if(due.length===0){
     dueGrid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><span class="em">🎉</span><p>Không còn chữ nào đến hạn ôn hôm nay!</p></div>`;
   } else {
-    dueGrid.innerHTML = due.slice(0,15).map(h=>`
+    // hiện tạm thời theo thứ tự cũ trong lúc chờ nhóm theo bộ thủ (nếu due > qty)
+    dueGrid.innerHTML = due.slice(0, getCheckinQty()).map(h=>`
       <div class="hanzi-tile due" data-id="${h.id}">${h.char}<span class="badge"></span></div>
     `).join('');
     dueGrid.querySelectorAll('.hanzi-tile').forEach(el=>{
       el.addEventListener('click', ()=>{ goView('write'); openWriter(el.dataset.id); });
     });
+    if(due.length>getCheckinQty()){
+      pickCheckinList(due).then(list=>{
+        dueGrid.innerHTML = list.map(h=>`
+          <div class="hanzi-tile due" data-id="${h.id}">${h.char}<span class="badge"></span></div>
+        `).join('');
+        dueGrid.querySelectorAll('.hanzi-tile').forEach(el=>{
+          el.addEventListener('click', ()=>{ goView('write'); openWriter(el.dataset.id); });
+        });
+      }).catch(()=>{ /* giữ nguyên danh sách tạm nếu tải dữ liệu bộ thủ thất bại */ });
+    }
   }
 
   document.getElementById('statTotal').textContent = DB.hanzi.length;
@@ -219,6 +250,9 @@ function openWriter(id){
     target.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">Không tải được dữ liệu nét viết cho chữ này (có thể do mất mạng).</div>`;
     writer = null;
   }
+
+  const vxWrap = document.getElementById('writerVocabExplain');
+  if(vxWrap) mountVocabExplain(vxWrap, h.char);
 }
 
 document.getElementById('btnShowAnim').addEventListener('click', ()=>{
@@ -271,6 +305,8 @@ function gradeHanzi(id, grade){
    生字库 DECK
 ================================================================== */
 function renderDeck(){
+  const qtySel = document.getElementById('deckCheckinQty');
+  if(qtySel) qtySel.value = String(getCheckinQty());
   const wrap = document.getElementById('deckList');
   if(DB.hanzi.length===0){
     wrap.innerHTML = `<div class="empty-state"><span class="em">📚</span><p>Kho chữ đang trống.</p><p>Bấm ＋ để thêm chữ đầu tiên!</p></div>`;
@@ -301,6 +337,12 @@ function renderDeck(){
     });
   });
 }
+
+document.getElementById('deckCheckinQty').addEventListener('change', (e)=>{
+  setCheckinQty(parseInt(e.target.value));
+  toast('Đã lưu — 打卡 sẽ hiện tối đa '+e.target.value+' chữ, chọn theo cùng bộ thủ');
+  renderHome();
+});
 
 document.getElementById('btnAddHanzi').addEventListener('click', ()=>{
   openModal(`
@@ -484,12 +526,28 @@ document.getElementById('btnReset').addEventListener('click', ()=>{
 
 /* ==================================================================
    NEWS WORKER CONFIG (dùng chung Worker với Xưởng Luyện Nói)
+
+   Vì sao có người bị "tự động mất" URL + Token đã lưu:
+   localStorage lưu theo TỪNG trình duyệt / TỪNG thiết bị, không đồng bộ
+   qua lại. Trên iOS, app "Thêm vào MH chính" (PWA standalone) còn có thể
+   bị hệ điều hành tự dọn dữ liệu web nếu lâu không mở, hoặc khi cài lại
+   icon trên màn hình chính (tạo ra 1 "hồ sơ" lưu trữ mới, trống trơn).
+   => Giải pháp: cho phép nhúng cấu hình NGAY TRONG LINK (query string
+   ?wurl=...&wtoken=...). Mở link đó lần nào, cấu hình tự nạp lại lần đó
+   — kể cả sau khi bị xoá dữ liệu hay đổi máy. Nút "Tạo link chia sẻ cấu
+   hình" bên dưới sẽ tạo link này; hãy dùng CHÍNH link đó để "Thêm vào
+   màn hình chính" thay vì link gốc, để mỗi lần cài lại app vẫn tự có
+   cấu hình luôn.
 ================================================================== */
 function getWorkerCfg(){
   return {
     url: (localStorage.getItem('xnc_worker_url')||'').trim(),
     token: (localStorage.getItem('xnc_worker_token')||'').trim()
   };
+}
+function saveWorkerCfg(url, token){
+  localStorage.setItem('xnc_worker_url', url);
+  localStorage.setItem('xnc_worker_token', token);
 }
 function loadWorkerCfgIntoForm(){
   const cfg = getWorkerCfg();
@@ -499,10 +557,49 @@ function loadWorkerCfgIntoForm(){
 document.getElementById('btnSaveWorkerCfg').addEventListener('click', ()=>{
   const url = document.getElementById('cfgWorkerUrl').value.trim().replace(/\/$/,'');
   const token = document.getElementById('cfgWorkerToken').value.trim();
-  localStorage.setItem('xnc_worker_url', url);
-  localStorage.setItem('xnc_worker_token', token);
+  saveWorkerCfg(url, token);
   toast('已保存 · Đã lưu cấu hình!');
 });
+
+// Nếu link được mở kèm ?wurl=...&wtoken=... thì tự nạp vào localStorage
+// (chạy sớm ngay khi app khởi động, xem cuối file phần "init").
+function applyWorkerCfgFromURL(){
+  const params = new URLSearchParams(location.search);
+  const url = params.get('wurl');
+  const token = params.get('wtoken');
+  if(url || token){
+    const cur = getWorkerCfg();
+    saveWorkerCfg(url ? url.trim().replace(/\/$/,'') : cur.url, token!==null ? token.trim() : cur.token);
+    // xoá query khỏi thanh địa chỉ để không lộ token khi chia sẻ ảnh chụp màn hình,
+    // nhưng vẫn giữ nguyên dữ liệu đã lưu vào localStorage ở trên
+    history.replaceState(null, '', location.pathname + location.hash);
+    toast('Đã tự nạp cấu hình Worker từ link');
+  }
+}
+document.getElementById('btnMakeShareLink').addEventListener('click', ()=>{
+  const cfg = getWorkerCfg();
+  if(!cfg.url){ toast('Chưa có cấu hình để tạo link — lưu cấu hình trước đã'); return; }
+  const link = location.origin + location.pathname
+    + '?wurl=' + encodeURIComponent(cfg.url)
+    + '&wtoken=' + encodeURIComponent(cfg.token);
+  openModal(`
+    <h3>Link chia sẻ cấu hình</h3>
+    <p style="font-size:12.5px;color:var(--text-muted);">Mở link này ở bất kỳ máy/trình duyệt nào (và dùng đúng link này khi "Thêm vào màn hình chính") để tự động có sẵn cấu hình Worker — kể cả sau khi mất dữ liệu cũ. Link chứa Token, chỉ chia sẻ cho người bạn tin tưởng.</p>
+    <textarea id="shareLinkText" readonly style="font-size:11.5px;min-height:90px;">${escapeHTML(link)}</textarea>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close>Đóng</button>
+      <button class="btn btn-primary" id="btnCopyShareLink">📋 Copy link</button>
+    </div>
+  `);
+  document.getElementById('btnCopyShareLink').addEventListener('click', async ()=>{
+    try{ await navigator.clipboard.writeText(link); toast('Đã copy link!'); }
+    catch(e){ document.getElementById('shareLinkText').select(); document.execCommand('copy'); toast('Đã copy link!'); }
+  });
+});
+// Xin trình duyệt "giữ" dữ liệu lâu hơn, giảm khả năng bị hệ điều hành tự dọn
+if(navigator.storage && navigator.storage.persist){
+  navigator.storage.persist().catch(()=>{});
+}
 
 /* ==================================================================
    NEWS: dán link → AI tóm tắt + phiên âm + trích từ (gọi chung Worker)
@@ -574,12 +671,28 @@ function renderNewsDetail(){
           <div class="vocab-extract-item">
             <div class="term">${escapeHTML(v.term)} <span style="font-weight:600;color:var(--text-muted);font-size:12px;">${pinyinRuby(v.term)}</span></div>
             <div class="expl">${escapeHTML(v.explanation)}</div>
-            <button class="btn btn-soft btn-sm" style="margin-top:8px;" data-add-chars="${i}">＋ Thêm chữ vào 生字库</button>
+            <div class="writer-controls" style="justify-content:flex-start;margin-top:8px;gap:8px;">
+              <button class="btn btn-soft btn-sm" data-add-chars="${i}">＋ Thêm chữ vào 生字库</button>
+              <button class="btn btn-ghost btn-sm" data-vx-term="${i}">📖 Giải thích/ghép từ/đặt câu (từ điển)</button>
+            </div>
+            <div class="vocab-explain" id="newsVx-${i}" style="display:none;"></div>
           </div>
         `).join('')
       }
     </div>
   `;
+  detailEl.querySelectorAll('[data-vx-term]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const i = btn.dataset.vxTerm;
+      const box = document.getElementById('newsVx-'+i);
+      const showing = box.style.display !== 'none';
+      box.style.display = showing ? 'none' : 'block';
+      if(!showing && !box.dataset.loaded){
+        box.dataset.loaded = '1';
+        mountVocabExplainForTerm(box, d.vocab[i].term);
+      }
+    });
+  });
   detailEl.querySelectorAll('[data-add-chars]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const v = d.vocab[btn.dataset.addChars];
@@ -609,51 +722,94 @@ let genduState = { list: [], recordings: {}, mediaRecorder: null, activeIdx: nul
 function renderGenduSetup(){
   const savedQty = localStorage.getItem('xnc_gendu_qty');
   const savedSpeed = localStorage.getItem('xnc_gendu_speed');
+  const savedGroup = localStorage.getItem('xnc_gendu_group');
   if(savedQty) document.getElementById('genduQty').value = savedQty;
   if(savedSpeed) document.getElementById('genduSpeed').value = savedSpeed;
+  if(savedGroup) document.getElementById('genduGroup').value = savedGroup;
   document.getElementById('genduSession').innerHTML = '';
+  renderToudiaoLibrary();
+}
+
+// thanh mẫu (声母) / vận mẫu (韵母) của 1 chữ, dùng pinyin-pro
+function getInitialFinal(char){
+  if(typeof pinyinPro === 'undefined' || !pinyinPro.pinyin) return {initial:'', final:''};
+  try{
+    const initial = pinyinPro.pinyin(char, {pattern:'initial', toneType:'none'}) || '';
+    const final = pinyinPro.pinyin(char, {pattern:'final', toneType:'none'}) || '';
+    return {initial: initial.trim(), final: final.trim()};
+  }catch(e){ return {initial:'', final:''}; }
+}
+
+// chọn session theo cùng thanh mẫu hoặc cùng vận mẫu với 1 chữ "gốc" ngẫu nhiên
+// trong kho — trả về ít nhất chữ gốc, nhiều nhất qty chữ.
+function buildGroupedGenduSession(chars, qty, mode){
+  if(chars.length===0) return [];
+  const anchor = chars[Math.floor(Math.random()*chars.length)];
+  const anchorIF = getInitialFinal(anchor);
+  const key = mode==='initial' ? anchorIF.initial : anchorIF.final;
+  if(!key) return chars.slice(0, qty); // không lấy được pinyin thì rơi về danh sách thường
+  const matched = chars.filter(ch => {
+    const f = getInitialFinal(ch);
+    return (mode==='initial' ? f.initial : f.final) === key;
+  });
+  // ưu tiên các chữ cùng nhóm; nếu chưa đủ qty thì lấp thêm chữ khác trong kho
+  const rest = chars.filter(ch=>!matched.includes(ch));
+  return [...matched, ...rest].slice(0, qty);
 }
 
 document.getElementById('btnGenduStart').addEventListener('click', ()=>{
   if(DB.hanzi.length===0){ toast('生字库 đang trống — thêm chữ trước đã'); return; }
   const qty = parseInt(document.getElementById('genduQty').value);
   const speed = document.getElementById('genduSpeed').value;
+  const group = document.getElementById('genduGroup').value; // 'none' | 'initial' | 'final'
   localStorage.setItem('xnc_gendu_qty', qty);
   localStorage.setItem('xnc_gendu_speed', speed);
+  localStorage.setItem('xnc_gendu_group', group);
 
-  const cursor = parseInt(localStorage.getItem('xnc_gendu_cursor') || '0');
   const chars = DB.hanzi.map(h=>h.char);
-  const session = [];
-  for(let i=0;i<Math.min(qty, chars.length);i++){
-    session.push(chars[(cursor+i) % chars.length]);
+  let session;
+  if(group==='initial' || group==='final'){
+    session = buildGroupedGenduSession(chars, qty, group);
+  } else {
+    const cursor = parseInt(localStorage.getItem('xnc_gendu_cursor') || '0');
+    session = [];
+    for(let i=0;i<Math.min(qty, chars.length);i++){
+      session.push(chars[(cursor+i) % chars.length]);
+    }
+    localStorage.setItem('xnc_gendu_cursor', (cursor + qty) % chars.length);
   }
   genduState = { list: session, recordings: {}, mediaRecorder: null, activeIdx: null, chunks: [] };
-  renderGenduSession(qty, parseFloat(speed), chars.length);
+  renderGenduSession(qty, parseFloat(speed), group);
 });
 
-function renderGenduSession(qty, speed, totalChars){
+function renderGenduSession(qty, speed, group){
   const wrap = document.getElementById('genduSession');
   const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  const groupLabel = group==='initial' ? ' · nhóm theo cùng thanh mẫu (声母)' : group==='final' ? ' · nhóm theo cùng vận mẫu (韵母)' : '';
   wrap.innerHTML = `
-    <h2 class="section-title">Buổi hôm nay (${genduState.list.length} chữ)</h2>
+    <h2 class="section-title">Buổi hôm nay (${genduState.list.length} chữ)${groupLabel}</h2>
   ` + genduState.list.map((ch,i)=>{
     let py = '';
     if(typeof pinyinPro !== 'undefined' && pinyinPro.pinyin){
       try{ py = pinyinPro.pinyin(ch, {toneType:'symbol'}); }catch(e){}
     }
     return `
-    <div class="card gendu-card">
-      <div style="flex:1;">
-        <div class="gendu-char">${ch}</div>
-        <div class="gendu-py">${py}</div>
+    <div class="card gendu-card-wrap">
+      <div class="gendu-card" style="border:none;padding:0;margin:0;box-shadow:none;">
+        <div style="flex:1;">
+          <div class="gendu-char">${ch}</div>
+          <div class="gendu-py">${py}</div>
+        </div>
+        <div class="gendu-controls">
+          <button class="gendu-btn-play" data-play="${i}" title="Nghe mẫu">▶</button>
+          ${canRecord ? `
+          <button class="gendu-btn-rec" data-rec="${i}" title="Ghi âm">🎙</button>
+          <button class="gendu-btn-replay" data-replay="${i}" disabled title="Nghe lại">⟳</button>
+          ` : ''}
+          <button class="gendu-btn-play" data-explain="${i}" title="Giải thích / ghép từ / đặt câu">📖</button>
+        </div>
       </div>
-      <div class="gendu-controls">
-        <button class="gendu-btn-play" data-play="${i}" title="Nghe mẫu">▶</button>
-        ${canRecord ? `
-        <button class="gendu-btn-rec" data-rec="${i}" title="Ghi âm">🎙</button>
-        <button class="gendu-btn-replay" data-replay="${i}" disabled title="Nghe lại">⟳</button>
-        ` : ''}
-      </div>
+      <div class="vocab-explain" id="genduVx-${i}" style="display:none;"></div>
     </div>`;
   }).join('') + `
     <button class="btn btn-primary btn-block" id="btnGenduDone" style="margin-top:8px;">✓ Hoàn thành buổi này</button>
@@ -669,13 +825,116 @@ function renderGenduSession(qty, speed, totalChars){
   wrap.querySelectorAll('[data-replay]').forEach(btn=>{
     btn.addEventListener('click', ()=> replayRecording(parseInt(btn.dataset.replay)));
   });
+  wrap.querySelectorAll('[data-explain]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const i = btn.dataset.explain;
+      const box = document.getElementById('genduVx-'+i);
+      const showing = box.style.display !== 'none';
+      box.style.display = showing ? 'none' : 'block';
+      if(!showing && !box.dataset.loaded){
+        box.dataset.loaded = '1';
+        mountVocabExplain(box, genduState.list[i]);
+      }
+    });
+  });
   document.getElementById('btnGenduDone').addEventListener('click', ()=>{
-    const cursor = parseInt(localStorage.getItem('xnc_gendu_cursor') || '0');
-    localStorage.setItem('xnc_gendu_cursor', (cursor + qty) % totalChars);
     checkinToday();
     toast('已完成 · Đã hoàn thành buổi luyện hôm nay!');
     renderHome();
   });
+}
+
+/* ==================================================================
+   绕口令库 — thư viện luyện phát âm theo 3 cấp độ + tự thêm
+================================================================== */
+const TOUDIAO_LIBRARY = {
+  easy: [
+    { text: '四是四，十是十，十四是十四，四十是四十。', note: 'Phân biệt 4 (sì) và 10 (shí) — âm tr sát/uốn lưỡi cơ bản.' },
+    { text: '妈妈骑马，马慢，妈妈骂马。', note: 'Luyện thanh mẫu m / âm mã, mắng.' },
+    { text: '红鲤鱼绿鲤鱼与驴。', note: 'Câu ngắn, phân biệt l và r/lǘ.' },
+  ],
+  medium: [
+    { text: '八百标兵奔北坡，炮兵并排北坡跑，炮兵怕把标兵碰，标兵怕碰炮兵炮。', note: 'Phân biệt b / p, âm bật hơi vs không bật hơi.' },
+    { text: '黑化肥发灰，灰化肥发黑，黑化肥发灰会挥发，灰化肥挥发会发黑。', note: 'Luyện h / f xen kẽ liên tục, tốc độ vừa.' },
+  ],
+  hard: [
+    { text: '吃葡萄不吐葡萄皮，不吃葡萄倒吐葡萄皮。', note: 'Chi/chī vs tǔ, cực nhanh dễ vấp âm cong lưỡi.' },
+    { text: '打南边来了个哑巴，腰里别着个喇叭；打北边来了个喇嘛，手里提了个獭犸；提着獭犸的喇嘛要拿獭犸换别着喇叭的哑巴的喇叭，别着喇叭的哑巴不愿拿喇叭换提着獭犸的喇嘛的獭犸。', note: 'Câu dài, nhiều âm gần giống nhau, thử thách phản xạ.' },
+  ],
+};
+function getCustomToudiao(){ return loadJSON('xnc_toudiao_custom', []); }
+function saveCustomToudiao(list){ saveJSON('xnc_toudiao_custom', list); }
+
+let toudiaoTab = 'easy';
+function renderToudiaoLibrary(){
+  const wrap = document.getElementById('toudiaoLibrary');
+  if(!wrap) return;
+  wrap.innerHTML = `
+    <h2 class="section-title">绕口令库</h2>
+    <div class="section-sub">Luyện phản xạ phát âm theo 3 cấp độ, hoặc tự thêm câu riêng</div>
+    <div class="toudiao-tabs">
+      <button class="btn ${toudiaoTab==='easy'?'btn-primary':'btn-ghost'} btn-sm" data-ttab="easy">初级</button>
+      <button class="btn ${toudiaoTab==='medium'?'btn-primary':'btn-ghost'} btn-sm" data-ttab="medium">中级</button>
+      <button class="btn ${toudiaoTab==='hard'?'btn-primary':'btn-ghost'} btn-sm" data-ttab="hard">高级</button>
+      <button class="btn ${toudiaoTab==='custom'?'btn-primary':'btn-ghost'} btn-sm" data-ttab="custom">自选</button>
+    </div>
+    <div id="toudiaoList"></div>
+  `;
+  wrap.querySelectorAll('[data-ttab]').forEach(b=>{
+    b.addEventListener('click', ()=>{ toudiaoTab = b.dataset.ttab; renderToudiaoLibrary(); });
+  });
+  renderToudiaoList();
+}
+function renderToudiaoList(){
+  const listEl = document.getElementById('toudiaoList');
+  if(!listEl) return;
+  if(toudiaoTab==='custom'){
+    const custom = getCustomToudiao();
+    listEl.innerHTML = `
+      <div class="card" style="padding:12px;">
+        <label class="field-label">Thêm câu 绕口令 của bạn</label>
+        <textarea id="ttCustomInput" placeholder="Dán câu chữ Hán vào đây..."></textarea>
+        <button class="btn btn-primary btn-sm btn-block" id="btnAddToudiao" style="margin-top:8px;">＋ Thêm vào 自选</button>
+      </div>
+    ` + (custom.length===0 ? `<div class="empty-state"><span class="em">📝</span><p>Chưa có câu tự thêm nào.</p></div>` :
+      custom.map((t,i)=>toudiaoCardHTML(t, 'c'+i)).join(''));
+    document.getElementById('btnAddToudiao').addEventListener('click', ()=>{
+      const text = document.getElementById('ttCustomInput').value.trim();
+      if(!text){ toast('Chưa nhập câu nào'); return; }
+      const list = getCustomToudiao();
+      list.push({ text, note: '' });
+      saveCustomToudiao(list);
+      renderToudiaoList();
+      toast('Đã thêm vào 自选');
+    });
+    listEl.querySelectorAll('[data-tt-del]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const list = getCustomToudiao();
+        list.splice(parseInt(b.dataset.ttDel), 1);
+        saveCustomToudiao(list);
+        renderToudiaoList();
+      });
+    });
+  } else {
+    const items = TOUDIAO_LIBRARY[toudiaoTab] || [];
+    listEl.innerHTML = items.map((t,i)=>toudiaoCardHTML(t, toudiaoTab+i)).join('');
+  }
+  listEl.querySelectorAll('[data-tt-play]').forEach(b=>{
+    b.addEventListener('click', ()=> speakChar(b.dataset.ttPlay, 0.75));
+  });
+}
+function toudiaoCardHTML(t, key){
+  const isCustom = key.startsWith('c');
+  const idx = isCustom ? key.slice(1) : null;
+  return `
+    <div class="card" style="padding:14px 16px;">
+      <div class="pinyin-passage">${pinyinRuby(t.text)}</div>
+      ${t.note?`<div class="rmeta" style="margin-top:8px;">${escapeHTML(t.note)}</div>`:''}
+      <div class="writer-controls" style="justify-content:flex-start;margin-top:10px;">
+        <button class="btn btn-soft btn-sm" data-tt-play="${escapeHTML(t.text)}">▶ Nghe đọc</button>
+        ${isCustom?`<button class="btn btn-ghost btn-sm" data-tt-del="${idx}">Xoá</button>`:''}
+      </div>
+    </div>`;
 }
 
 let zhVoice = null;
@@ -740,9 +999,15 @@ function replayRecording(idx){
 /* ---------------- service worker ---------------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js?v=1').catch(()=>{});
+    navigator.serviceWorker.register('sw.js?v=2').catch(()=>{});
   });
 }
 
 /* ---------------- init ---------------- */
+applyWorkerCfgFromURL();
 renderHome();
+// tải trước dữ liệu bộ thủ ở nền (không chặn UI) để 打卡 nhóm được ngay
+// từ lần vào app đầu tiên nếu có mạng, và để phần giải thích mở nhanh hơn.
+if(typeof loadXinhuaCharDict === 'function'){
+  loadXinhuaCharDict().then(()=>{ if(document.getElementById('view-home').classList.contains('active')) renderHome(); }).catch(()=>{});
+}
