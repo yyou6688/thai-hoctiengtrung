@@ -193,6 +193,28 @@ label.field-label:first-child{margin-top:0;}
 .writer-stage{
   display:flex;flex-direction:column;align-items:center;gap:14px;
 }
+
+/* ---------- vocab explain (giải thích/ghép từ/đặt câu) ---------- */
+.vocab-explain{
+  width:100%;background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:12px;margin-top:6px;text-align:left;
+}
+.vocab-explain-loading, .vocab-explain-empty{font-size:12.5px;color:var(--text-muted);}
+.vx-block{margin-bottom:9px;}
+.vx-block:last-child{margin-bottom:0;}
+.vx-label{font-size:11px;font-weight:800;color:var(--primary-dark);margin-bottom:3px;}
+.vx-text{font-size:12.5px;color:var(--text);line-height:1.55;white-space:pre-line;}
+.vx-source{color:var(--text-muted);}
+.vx-combos{display:flex;flex-wrap:wrap;gap:6px;}
+.vx-combo-chip{
+  font-size:12px;font-weight:700;background:var(--card);border:1px solid var(--border);
+  color:var(--primary-dark);padding:4px 10px;border-radius:100px;
+}
+.vx-combo-chip em{font-style:normal;font-weight:500;color:var(--text-muted);margin-left:4px;}
+
+/* ---------- 绕口令库 ---------- */
+.toudiao-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
+.gendu-card-wrap{padding:14px 16px;}
 #hanziTarget{
   width:260px;height:260px;background:var(--bg-deep);border-radius:var(--radius-lg);
   border:1.5px solid var(--border);
@@ -306,6 +328,7 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
           <button class="btn btn-soft btn-sm" id="btnQuiz">✍️ Tự viết (chấm điểm)</button>
           <button class="btn btn-soft btn-sm" id="btnHint">💡 Gợi ý nét tiếp</button>
         </div>
+        <div class="vocab-explain" id="writerVocabExplain"></div>
         <div class="writer-controls" id="reviewButtons" style="display:none;">
           <button class="btn btn-ghost btn-sm" data-grade="0">😵 Quên hẳn</button>
           <button class="btn btn-soft btn-sm" data-grade="1">😐 Khó nhớ</button>
@@ -325,6 +348,17 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
         </div>
       </div>
       <div class="section-sub">Kho chữ đang luyện — thêm chữ mới, ghi câu chuyện liên tưởng riêng của bạn</div>
+      <div class="card">
+        <label class="field-label">Số chữ hiển thị mỗi buổi 打卡</label>
+        <select id="deckCheckinQty">
+          <option value="5">5 chữ</option>
+          <option value="10">10 chữ</option>
+          <option value="15" selected>15 chữ</option>
+          <option value="20">20 chữ</option>
+          <option value="30">30 chữ</option>
+        </select>
+        <div class="rmeta" style="margin-top:6px;">Nếu số chữ đến hạn nhiều hơn số này, app tự chọn nhóm chữ <b>cùng bộ thủ</b> và <b>số nét gần nhau</b> để bạn học theo cụm dễ nhớ hơn.</div>
+      </div>
       <div id="deckList"></div>
     </section>
 
@@ -345,9 +379,16 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
           <option value="0.85" selected>Vừa</option>
           <option value="1">Bình thường</option>
         </select>
+        <label class="field-label">Chọn chữ theo</label>
+        <select id="genduGroup">
+          <option value="none" selected>Thứ tự trong kho (như cũ)</option>
+          <option value="initial">Cùng thanh mẫu (声母 — phụ âm đầu)</option>
+          <option value="final">Cùng vận mẫu (韵母 — phần vần)</option>
+        </select>
         <button class="btn btn-primary btn-block" id="btnGenduStart" style="margin-top:14px;">▶ Bắt đầu buổi hôm nay</button>
       </div>
       <div id="genduSession"></div>
+      <div id="toudiaoLibrary"></div>
     </section>
 
     <!-- ============ NEWS (新闻精读) ============ -->
@@ -378,6 +419,8 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
         <label class="field-label">Auth Token</label>
         <input type="text" id="cfgWorkerToken" placeholder="Token bạn đã đặt">
         <button class="btn btn-primary btn-block" id="btnSaveWorkerCfg" style="margin-top:14px;">Lưu cấu hình</button>
+        <button class="btn btn-soft btn-block" id="btnMakeShareLink" style="margin-top:8px;">🔗 Tạo link chia sẻ cấu hình</button>
+        <div class="rmeta" style="margin-top:8px;">Nếu app hay bị "quên" cấu hình mỗi lần mở lại trên điện thoại (thường gặp trên iOS), hãy dùng nút trên để tạo link có sẵn cấu hình, rồi dùng CHÍNH link đó để mở app / thêm ra màn hình chính lần sau.</div>
       </div>
 
       <div class="card">
@@ -424,6 +467,7 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
 <div id="toast"></div>
 <div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
 
-<script src="app.js?v=5"></script>
+<script src="xinhua.js?v=1"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
