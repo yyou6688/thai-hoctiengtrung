@@ -219,6 +219,23 @@ label.field-label:first-child{margin-top:0;}
 /* ---------- 绕口令库 ---------- */
 .toudiao-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;}
 .gendu-card-wrap{padding:14px 16px;}
+
+/* ---------- 🐾 pet card ---------- */
+.pet-card{padding:14px 16px;}
+.pet-card-main{display:flex;align-items:center;gap:12px;}
+.pet-card-empty{text-align:center;padding:6px 0;}
+.pet-emoji-lg{font-size:40px;line-height:1;flex:none;}
+.pet-stage-0, .pet-stage-1{font-size:30px;}
+.pet-emoji-md{font-size:30px;line-height:1;}
+.pet-progress-track{height:6px;border-radius:100px;background:var(--bg-deep);margin:6px 0 4px;overflow:hidden;}
+.pet-progress-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--accent));border-radius:100px;}
+.pet-gallery-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
+.pet-gallery-item{
+  text-align:center;background:var(--bg-deep);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 6px;
+}
+.pet-gallery-item.locked{opacity:.55;}
+.pet-gallery-name{font-size:11.5px;font-weight:700;margin-top:4px;}
 #hanziTarget{
   width:260px;height:260px;background:var(--bg-deep);border-radius:var(--radius-lg);
   border:1.5px solid var(--border);
@@ -294,6 +311,8 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
         <div class="sub" id="heroSub">Thêm chữ đầu tiên vào 生字库 để bắt đầu 🌱</div>
       </div>
 
+      <div id="petCardWrap"></div>
+
       <h2 class="section-title">Hôm nay cần ôn</h2>
       <div class="section-sub">Chữ đến hạn ôn — chạm để luyện viết ngay</div>
       <div id="dueGrid" class="hanzi-grid"></div>
@@ -334,6 +353,10 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
           <button class="btn btn-soft btn-sm" id="btnQuiz">✍️ Tự viết (chấm điểm)</button>
           <button class="btn btn-soft btn-sm" id="btnHint">💡 Gợi ý nét tiếp</button>
         </div>
+        <div class="writer-controls">
+          <button class="btn btn-accent btn-sm" id="btnTimedTest">⏱ Kiểm tra viết tính giờ (thưởng 🐾)</button>
+        </div>
+        <div class="vocab-explain" id="timedTestStatus" style="display:none;"></div>
         <div class="vocab-explain" id="writerVocabExplain"></div>
         <div class="writer-controls" id="reviewButtons" style="display:none;">
           <button class="btn btn-ghost btn-sm" data-grade="0">😵 Quên hẳn</button>
@@ -489,6 +512,7 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
 <div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
 
 <script src="xinhua.js?v=2"></script>
-<script src="app.js?v=8"></script>
+<script src="pets.js?v=1"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>
