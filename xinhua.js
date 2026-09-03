@@ -243,17 +243,60 @@ function getStrokesSync(char){
   return isNaN(n) ? null : n;
 }
 
+/* ---------------- Dịch tự động sang tiếng Việt ----------------
+   Dùng endpoint dịch không cần API key của Google (được nhiều dự án mã
+   nguồn mở dùng: translate.googleapis.com/translate_a/single). Đây KHÔNG
+   phải API chính thức nên có thể bị giới hạn/đổi định dạng theo thời
+   gian — nếu sau này thấy nút "Dịch" báo lỗi liên tục, đó là dấu hiệu
+   Google đã chặn endpoint này, cần thay bằng dịch vụ khác.
+   Kết quả dịch được cache lại (IndexedDB) để không phải dịch lại chữ/câu
+   đã dịch trước đó — tiết kiệm mạng, phản hồi tức thì các lần sau. */
+async function translateZhToVi(text){
+  if(!text) return '';
+  const clean = text.slice(0, 350);
+  const cacheKey = 'tr-vi:' + clean;
+  const cached = await xnIDBGet(cacheKey);
+  if(cached !== null) return cached;
+  const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=vi&dt=t&q=' + encodeURIComponent(clean);
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const data = await res.json();
+  const translated = (data[0]||[]).map(seg=>seg[0]).join('');
+  xnIDBSet(cacheKey, translated); // lưu nền
+  return translated;
+}
+// Gắn 1 nút "🇻🇳 Dịch" vào block, bấm vào thì dịch `text` và hiện ngay dưới.
+function wireTranslateButton(container, btnId, boxId, text){
+  const btn = container.querySelector('#'+btnId);
+  if(!btn) return;
+  btn.addEventListener('click', async ()=>{
+    const box = container.querySelector('#'+boxId);
+    btn.disabled = true; btn.textContent = 'Đang dịch...';
+    try{
+      const vi = await translateZhToVi(text);
+      box.textContent = vi || '(không dịch được đoạn này)';
+      box.style.display = 'block';
+      btn.style.display = 'none';
+    }catch(e){
+      btn.disabled = false; btn.textContent = '🇻🇳 Dịch (thử lại)';
+    }
+  });
+}
+
 /* ---------------- Render HTML cho khối "giải thích / ghép từ / đặt câu" ---------------- */
-function renderVocabExplainHTML(data){
+function renderVocabExplainHTML(data, uidPrefix){
   if(!data.hasData){
     return `<div class="vocab-explain-empty">Chưa có dữ liệu giải thích cho chữ này trong kho từ điển.</div>`;
   }
+  const up = uidPrefix || ('vx'+Math.random().toString(36).slice(2,8));
   const parts = [];
   if(data.explanation){
     parts.push(`
       <div class="vx-block">
         <div class="vx-label">📖 Giải thích</div>
         <div class="vx-text">${escapeHTML(data.explanation).slice(0,400)}</div>
+        <button class="btn btn-ghost btn-sm" id="${up}-tr-expl-btn" style="margin-top:6px;padding:4px 10px;font-size:11.5px;">🇻🇳 Dịch</button>
+        <div class="vx-text vx-translated" id="${up}-tr-expl-box" style="display:none;"></div>
       </div>`);
   }
   if(data.radicals || data.strokes){
@@ -275,9 +318,18 @@ function renderVocabExplainHTML(data){
       <div class="vx-block">
         <div class="vx-label">✏️ Đặt câu / ví dụ</div>
         <div class="vx-text">${escapeHTML(data.sentence.text).slice(0,300)}${data.sentence.from?` <span class="vx-source">(từ「${escapeHTML(data.sentence.from)}」)</span>`:''}</div>
+        <button class="btn btn-ghost btn-sm" id="${up}-tr-sent-btn" style="margin-top:6px;padding:4px 10px;font-size:11.5px;">🇻🇳 Dịch</button>
+        <div class="vx-text vx-translated" id="${up}-tr-sent-box" style="display:none;"></div>
       </div>`);
   }
   return parts.join('') || `<div class="vocab-explain-empty">Chưa có dữ liệu giải thích cho chữ này.</div>`;
+}
+// Sau khi đã innerHTML xong renderVocabExplainHTML(data, up), gọi hàm này để
+// gắn hoạt động cho các nút "🇻🇳 Dịch" bên trong.
+function wireVocabTranslateButtons(container, data, uidPrefix){
+  if(!data.hasData) return;
+  if(data.explanation) wireTranslateButton(container, uidPrefix+'-tr-expl-btn', uidPrefix+'-tr-expl-box', data.explanation);
+  if(data.sentence) wireTranslateButton(container, uidPrefix+'-tr-sent-btn', uidPrefix+'-tr-sent-box', data.sentence.text);
 }
 
 // Gắn khối giải thích vào 1 container, tự lo loading / lỗi mạng.
@@ -289,7 +341,9 @@ async function mountVocabExplain(container, char){
       const el = container.querySelector(`#vxLoadingMsg-${CSS.escape(char)}`);
       if(el) el.textContent = msg;
     });
-    container.innerHTML = renderVocabExplainHTML(data);
+    const up = 'vx'+Math.random().toString(36).slice(2,8);
+    container.innerHTML = renderVocabExplainHTML(data, up);
+    wireVocabTranslateButtons(container, data, up);
   }catch(e){
     container.innerHTML = `<div class="vocab-explain-empty">⚠️ Không tải được dữ liệu (cần mạng cho lần tra đầu tiên). Thử lại khi có mạng.</div>`;
   }
@@ -350,7 +404,9 @@ async function mountVocabExplainForTerm(container, term){
   container.innerHTML = `<div class="vocab-explain-loading"><span class="spinner"></span> Đang tra cứu...</div>`;
   try{
     const data = await getVocabExplainForTerm(term);
-    container.innerHTML = renderVocabExplainHTML(data);
+    const up = 'vx'+Math.random().toString(36).slice(2,8);
+    container.innerHTML = renderVocabExplainHTML(data, up);
+    wireVocabTranslateButtons(container, data, up);
   }catch(e){
     container.innerHTML = `<div class="vocab-explain-empty">⚠️ Không tải được dữ liệu (cần mạng cho lần tra đầu tiên).</div>`;
   }
