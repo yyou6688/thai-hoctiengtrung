@@ -363,7 +363,22 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
           <option value="20">20 chữ</option>
           <option value="30">30 chữ</option>
         </select>
-        <div class="rmeta" style="margin-top:6px;">Nếu số chữ đến hạn nhiều hơn số này, app tự chọn nhóm chữ <b>cùng bộ thủ</b> và <b>số nét gần nhau</b> để bạn học theo cụm dễ nhớ hơn.</div>
+        <label class="field-label">Số nét chữ (lọc chữ ưu tiên ôn hôm nay)</label>
+        <select id="deckCheckinStrokeRange">
+          <option value="">Không giới hạn</option>
+          <option value="1-5">1 – 5 nét (dễ)</option>
+          <option value="6-10">6 – 10 nét (vừa)</option>
+          <option value="11-15">11 – 15 nét (khó)</option>
+          <option value="16-99">16+ nét (rất khó)</option>
+          <option value="custom">Tùy chỉnh...</option>
+        </select>
+        <div id="deckCheckinStrokeCustom" style="display:none;align-items:center;gap:8px;margin-top:8px;">
+          <input type="number" id="deckCheckinStrokeMin" placeholder="Từ" min="1" style="width:100%;">
+          <span style="color:var(--text-muted);font-size:13px;flex:none;">đến</span>
+          <input type="number" id="deckCheckinStrokeMax" placeholder="Đến" min="1" style="width:100%;">
+          <span style="color:var(--text-muted);font-size:13px;flex:none;white-space:nowrap;">nét</span>
+        </div>
+        <div class="rmeta" style="margin-top:6px;">Nếu số chữ đến hạn nhiều hơn số này, app tự chọn nhóm chữ <b>cùng bộ thủ</b> và <b>số nét gần nhau</b> để bạn học theo cụm dễ nhớ hơn. Nếu chọn thêm khoảng số nét, 打卡 sẽ ưu tiên hiện chữ trong khoảng đó trước (chữ khác vẫn giữ nguyên ngày ôn, không bị ảnh hưởng).</div>
       </div>
       <div id="deckList"></div>
     </section>
@@ -474,6 +489,6 @@ nav.bottom button.active{color:var(--primary-dark);background:var(--primary-soft
 <div class="modal-overlay" id="modalOverlay"><div class="modal" id="modalBody"></div></div>
 
 <script src="xinhua.js?v=2"></script>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
