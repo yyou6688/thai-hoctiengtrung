@@ -1,10 +1,10 @@
 /* Xưởng Nhớ Chữ — service worker
    Quy tắc: mỗi lần sửa code, tăng CACHE_VERSION lên 1 để buộc trình duyệt lấy bản mới. */
-const CACHE_VERSION = 'xnc-v7';
+const CACHE_VERSION = 'xnc-v8';
 const ASSETS = [
   './index.html',
-  './app.js?v=6',
-  './xinhua.js?v=1',
+  './app.js?v=7',
+  './xinhua.js?v=2',
   './manifest.json?v=1',
   './icon-192.png',
   './icon-512.png',
